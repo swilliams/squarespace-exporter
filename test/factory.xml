@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:excerpt="http://wordpress.org/export/1.2/excerpt/" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:wfw="http://wellformedweb.org/CommentAPI/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:wp="http://wordpress.org/export/1.2/">
+  <channel>
+    <title>Scott Williams</title>
+    <link>http://blog.swilliams.me</link>
+    <pubDate>Tue, 28 Aug 2012 02:30:41 +0000</pubDate>
+    <description>Code. Photos. Writing.</description>
+    <language>en-US</language>
+    <wp:wxr_version>1.2</wp:wxr_version>
+    <wp:author>
+      <wp:author_id>1904827915</wp:author_id>
+      <wp:author_login>scott@swilliamsphoto.com</wp:author_login>
+      <wp:author_email>scott@swilliamsphoto.com</wp:author_email>
+      <wp:author_display_name><![CDATA[Scott Williams]]></wp:author_display_name>
+      <wp:author_first_name><![CDATA[Scott]]></wp:author_first_name>
+      <wp:author_last_name><![CDATA[Williams]]></wp:author_last_name>
+    </wp:author>
+    <wp:category>
+      <wp:cat_name><![CDATA[Business - Architecture Services]]></wp:cat_name>
+      <wp:category_nicename>Business-ArchitectureServices</wp:category_nicename>
+      <wp:category_parent />
+    </wp:category>
+    <item>
+      <title>Demystifying Ruby DSLs — Part 2</title>
+      <link>/words/2014/2/21/demystifying-ruby-dsls-part-2</link>
+      <content:encoded><![CDATA[<p><a href="http://blog.swilliams.me/words/2014/1/26/demystifying-ruby-dsls">Last time we learned about how to use modules to dynamically add functionality to a class</a>. This time let's take a look at doing that, but customizing our extensions at runtime. </p>
+
+<p>What helped me ultimately understand how these things work is that you are building up classes on the fly. It's kind of like when you <code>include</code> a module, it's editing that class to add more methods to it. Think of a bunch of Legos. Each Lego is a module with various methods on it. At runtime they assemble together to build a castle.</p><img src="http://static.squarespace.com/static/503c2d51c4aaa390413b1112/50424765e4b05fbf2352555a/5307a84de4b0ebfe8b3ec9c3/1393010768926/lego%20annotated.png" /><h3 id="dynamicallyadding">Dynamically Adding</h3>
+
+<p>What if those Legos could generate even more Legos as you were building with them, and then intelligently join themselves together?</p>
+
+<p>If you're familiar with Rails, you've seen that you can just declare associations within a model — <code>:has_many</code>, <code>:has_one</code>, and so on. Once you add those directives to your class, suddenly you have access to brand spanking new methods. Have you ever wondered how that worked? Let's implement a rudimentary version.</p>
+
+<p>Think for a moment about <code>:has_many</code>. What would you expect the line <code>has_many :gerbils</code> methods to do?  You would have to have a <code>gerbils</code> method to retrieve the little fellas, and another one, <code>gerbils=(new_value)</code> to set them (and others to add them and so on, but <a href="http://en.wikipedia.org/wiki/Keep_it_simple_stupid">KISS</a>). You implement that with a generic <code>get_child_models(child_name)</code> method, but that feels like the Java (™ Oracle Corporation) way... and I have too much self respect to go down that path. Instead we can take advantage of Ruby's metaprogramming capabilities and generate them dynamically. </p>
+
+<p>One way to do this is with <code>eval</code>.</p>
+
+<h2 id="awordoneval">A Word on Eval</h2>
+
+<p>Ruby has a few versions of <code>eval</code>. They all take strings or blocks and turn them in code that is executed.</p>
+
+<ul>
+<li>There's the <a href="http://www.ruby-doc.org/core-2.1.0/Kernel.html#method-i-eval">standard one</a> that executes arbitrary code.</li>
+<li><a href="http://ruby-doc.org/core-2.1.0/Module.html#method-i-class_eval">class_eval</a> — similar to vanilla <code>eval</code>, but executes the code in the context of the Class itself. There's also <code>module_eval</code> which does the same thing (more or less). Example:</li>
+</ul><pre class="source-code">class Monkey<br>end<br><br>m = Monkey.new<br>Monkey.class_eval %q(def screech() 'Eek Eek' end)<br>m.screech # Eek Eek<br></pre><ul>
+<li><a href="">instance_eval</a> — modifies a class, but from an instance point of view, <em>and only for that particular instance</em> (this is called a <a href="http://rubymonk.com/learning/books/4-ruby-primer-ascent/chapters/39-ruby-s-object-model/lessons/131-singleton-methods-and-metaclasses">Singleton method</a>).</li>
+</ul><pre class="source-code">class Monkey<br>end<br><br>m = Monkey.new<br>m2 = Monkey.new<br>m.instance_eval %q(def screech() 'Eek Eek' end)<br>m.screech # Eek Eek<br>m2.screech # NoMethodError: undefined method `screech' for #&lt;Monkey:0x007fa6f768bac8&gt;<br></pre><p>Using these techniques you can generate the set of methods for our <code>:has_many</code> implementation.</p><pre class="source-code">module Associations<br>  class &lt;&lt; self<br>    def included(base)<br>      base.extend Associations::ClassMethods<br>    end<br>  end<br><br>  module ClassMethods<br>    def has_many(thingies)<br>      code = %(<br>        def #{thingies}<br>          # retrieve stuff from here<br>        end<br><br>        def #{thingies}=(new_value)<br>          # set new_value here<br>        end<br>      )<br>      class_eval code<br>    end<br>  end<br>end<br><br></pre><p>Now, if you <code>include Associations</code> in your class, you can call <code>has_many :hamsters</code> or <code>has_many :gerbils</code> or <code>has_many :guinea_pigs</code> and have all of your getters and setters created.</p><img src="http://static.squarespace.com/static/503c2d51c4aaa390413b1112/50424765e4b05fbf2352555a/5307a928e4b0bba2c5d78d0d/1393010996562/cashew.jpg" /><h3 id="caution">Caution</h3>
+
+<p>I'm not a big fan of <code>eval</code>, at least when using it with strings. The biggest reason is that it makes bugs harder to find. The Ruby interpreter will point out syntax errors when the file loads, but a typo in an evalled string won't get caught until runtime. The longer the string, the more likely something bad will creep in there. And some of these dynamically created methods will be long. I'm talking <a href="http://www.amazon.com/gp/product/B0026L7H20/ref=as_li_ss_tl?ie=UTF8&amp;camp=1789&amp;creative=390957&amp;creativeASIN=B0026L7H20&amp;linkCode=as2&amp;tag=thepetzoo-20">Lord of the Rings Extended Edition</a> long.</p>
+
+<p>Fortunately there is a better way. The eval methods also take blocks, which work pretty well in most cases. For the purposes of dynamically generating methods, I prefer using <code>define_method</code> (<a href="http://ruby-doc.org/core-2.1.0/Module.html#method-i-define_method">source</a>). It's available on <code>Module</code> (and therefore classes too) and, just like it says on the tin, is designed to create methods on the fly and add them to a class.</p><pre class="source-code">def has_many(thingies)<br>  define_method thingies.to_s do<br>    # retrieve stuff from here<br>  end<br><br>  define_method "#{thingies}=" do<br>    # set new_value here<br>  end<br>end<br><br></pre><p>It's kinda similar to the eval code, in fact, <code>define_method</code> passes itself along to <code>instance_eval</code>, so when all is said and done, it's merely for our convenience. But is easier to test, and will complain loudly if there's a syntax error. </p>
+
+<p>Working with actual code rather than a string makes refactoring easier too. Let's say you want to enable your users to define their own implementations of the generated rodent methods. Pulling that out into its own method is simple:</p><pre class="source-code">def add_method_without_clobbering (method_name, &amp;method_definition)<br>  unless method_defined? method_name<br>    define_method method_name, method_definition<br>  end<br>end<br><br>def has_many(thingies)<br>  add_method_without_clobbering thingies.to_s do<br>    # retrieve stuff from here<br>  end<br><br>  add_method_without_clobbering "#{thingies}=" do<br>    # set new_value here<br>  end<br>end<br><br></pre><p>That's still possible with string evals, but is easier to read in my eyes.</p>
+
+<p>That'll wrap up this entry on DSLs. There's only one other big piece of the pie I'd like to cover — blocks, but you can do a whole lot without them.</p>
+
+<p>Oh, and here's a bonus tip too: DSL code can be hard to follow. Document everything, especially the esoteric parts. It might even be a good idea to diagram the path of all the <code>include</code> chain. DSLs can make client code easier to write, but usually at the expense of crazy complexity within the DSL itself.</p>]]></content:encoded>
+      <excerpt:encoded />
+      <wp:post_name>2014/2/21/demystifying-ruby-dsls-part-2</wp:post_name>
+      <wp:post_type>post</wp:post_type>
+      <wp:post_id>0</wp:post_id>
+      <wp:status>publish</wp:status>
+      <pubDate>Fri, 21 Feb 2014 19:34:05 +0000</pubDate>
+      <wp:post_date>2014-02-21 19:34:05</wp:post_date>
+      <wp:post_date_gmt>2014-02-21 19:34:05</wp:post_date_gmt>
+      <category domain="post_tag" nicename="ruby"><![CDATA[ruby]]></category>
+      <category domain="post_tag" nicename="code"><![CDATA[code]]></category>
+      <dc:creator>scott@swilliamsphoto.com</dc:creator>
+      <wp:comment_status>closed</wp:comment_status>
+    </item>
+    <item>
+      <wp:attachment_url>http://static.squarespace.com/static/503c2d51c4aaa390413b1112/50424765e4b05fbf2352555a/5307a928e4b0bba2c5d78d0d/1393010996562/cashew.jpg</wp:attachment_url>
+      <link>http://static.squarespace.com/static/503c2d51c4aaa390413b1112/50424765e4b05fbf2352555a/5307a928e4b0bba2c5d78d0d/1393010996562/cashew.jpg</link>
+      <title>attachment-5307a928e4b0bba2c5d78d0d</title>
+      <wp:post_name>cashew-jpg</wp:post_name>
+      <wp:post_type>attachment</wp:post_type>
+      <wp:post_id>1</wp:post_id>
+      <wp:post_parent>0</wp:post_parent>
+      <wp:status>inherit</wp:status>
+      <content:encoded><![CDATA[img-5307a928e4b0bba2c5d78d0d]]></content:encoded>
+      <excerpt:encoded><![CDATA[exc-5307a928e4b0bba2c5d78d0d]]></excerpt:encoded>
+      <pubDate>Fri, 21 Feb 2014 19:29:44 +0000</pubDate>
+      <wp:post_date>2014-02-21 19:29:44</wp:post_date>
+      <wp:post_date_gmt>2014-02-21 19:29:44</wp:post_date_gmt>
+      <dc:creator>scott@swilliamsphoto.com</dc:creator>
+    </item>
+    <item>
+      <wp:attachment_url>http://static.squarespace.com/static/503c2d51c4aaa390413b1112/50424765e4b05fbf2352555a/5307a84de4b0ebfe8b3ec9c3/1393010768926/lego%20annotated.png</wp:attachment_url>
+      <link>http://static.squarespace.com/static/503c2d51c4aaa390413b1112/50424765e4b05fbf2352555a/5307a84de4b0ebfe8b3ec9c3/1393010768926/lego%20annotated.png</link>
+      <title>attachment-5307a84de4b0ebfe8b3ec9c3</title>
+      <wp:post_name>lego-annotated-png</wp:post_name>
+      <wp:post_type>attachment</wp:post_type>
+      <wp:post_id>2</wp:post_id>
+      <wp:post_parent>0</wp:post_parent>
+      <wp:status>inherit</wp:status>
+      <content:encoded><![CDATA[img-5307a84de4b0ebfe8b3ec9c3]]></content:encoded>
+      <excerpt:encoded><![CDATA[exc-5307a84de4b0ebfe8b3ec9c3]]></excerpt:encoded>
+      <pubDate>Fri, 21 Feb 2014 19:26:05 +0000</pubDate>
+      <wp:post_date>2014-02-21 19:26:05</wp:post_date>
+      <wp:post_date_gmt>2014-02-21 19:26:05</wp:post_date_gmt>
+      <dc:creator>scott@swilliamsphoto.com</dc:creator>
+    </item>
+    <item>
+      <title>Demystifying Ruby DSLs</title>
+      <link>/words/2014/1/26/demystifying-ruby-dsls</link>
+      <content:encoded><![CDATA[<p>I like <a href="https://www.ruby-lang.org/en/">Ruby</a>. It has a way of appearing clean and simple, while still being expressive. Due to its <a href="http://en.wikipedia.org/wiki/Dynamic_typing#Dynamic_type-checking_and_runtime_type_information">typing system</a> you can bend it in a variety of ways to do certain things that would be very complicated in other languages, or make you write an entire compiler. I'm talking, of course, about Domain Specific Languages, or <a href="http://en.m.wikipedia.org/wiki/Domain_specific_language">DSLs</a>. If you've ever used a popular Ruby library (like Rails, or RSpec, or anything else) then you've used a DSL. Rails in particular has a couple different ones:</p><pre class="source-code"># Routes<br># config/routes.rb<br>DerptyDerp::Application.routes.draw do<br>  resources :users<br>  resources :dinguses, only: [:new, :show]<br>end<br><br># ActiveRecord<br># app/models/user.rb<br>class User &lt; ActiveRecord::Base<br>  validates :email, presence: true, uniqueness: true<br>  has_one :dingus, dependent: :destroy<br>end<br></pre><p>And so on. At first glance, the code that allows this can be intimidating, especially when it's been broken up and refactored across 20 different classes and modules. Fortunately, there are probably only about 10 things that you really need to know to read along, and to make them yourself.</p>
+
+<h2 id="classmethods">Class Methods</h2>
+
+<p>Did you know that you can execute code right from within a class declaration? Well, you can. Try it!</p><pre class="source-code">class Derp<br>  def self.can_eat_sandwiches<br>    puts "I LOVE CATS"<br>  end<br>      <br>  can_eat_sandwiches<br>end</pre><p>When that class is read by the interpreter, it'll execute the <code>can_eat_sandwiches</code> method and print the non-sequitur to the console. This'll even work through inheritance.</p><pre class="source-code">class Herp &lt; Derp<br>  can_eat_sandwiches<br>end<br></pre><p>And you'll have a wonderful message printed out twice. This technique can be used to do more than just clutter up a log file too! For example, in Rails when you <a href="https://github.com/rails/rails/blob/9c025ab6e9731dde56186b41ba5d4f216a48c831/activemodel/lib/active_model/validations.rb#L140">setup validation</a>, all you're doing is calling another method.</p>
+
+<h2 id="putitintoamodule">Put it into a Module</h2>
+
+<p>Sometimes you want to add functionality to a class without locking it into a long inheritance chain. Ruby uses <a href="http://www.tutorialspoint.com/ruby/ruby_modules.htm">Modules</a> to accomplish this, so you can pull your methods into a separate file to include them at will. There's a catch though before you dive in. Traditionally, you'd include a module like this:</p><pre class="source-code">module TheHerppening<br>  def can_eat_sandwiches<br>  end<br>end<br><br>class Sandwichable<br>  include TheHerppening<br>end</pre><p>If you know how modules work, you might've noticed that will only add <code>can_eat_sandwiches</code> to <em>instances</em> of <code>Sandwichable</code>, not to <code>Sandwichable</code> itself. Which means that calling <code>can_eat_sandwiches</code> directly in the class won't work. But fear not! Ruby can be molded in many dark and fearsome ways. Rather than using <code>include</code>, you can use <code>extend</code> to add methods to a class.</p><pre class="source-code">class Sandwichable<br>  extend TheHerppening<br><br>  can_eat_sandwiches<br>end<br></pre><p>Aaaaand we're back in business. But, say you wanted to have some methods that needed to be on instances, and some for the class? Can you mix both? Sure. Just wrap them in different modules and add them with the appropriate calls. There's even a pattern to follow for naming the modules: <code>ClassMethods</code> and <code>InstanceMethods</code>:</p><pre class="source-code">module TheHerppening<br>  module ClassMethods<br>    def can_eat_sandwiches<br>      puts 'DING'<br>    end<br>  end<br><br>  module InstanceMethods<br>    def eat_the_sandwich<br>      puts 'I wish I could marry a sandwich.'<br>    end<br>  end<br>end<br></pre><p>They can even be in the same file. As a side note, this is also how you can do namespacing in Ruby. Including these can be a little tedious if you have to add this to lots of classes.</p><pre class="source-code">class Sandwichable<br>  extend TheHerppening::ClassMethods<br>  include TheHerppening::InstanceMethods<br><br>  can_eat_sandwiches<br>end</pre><p>Not to mention ugly. And if there's one thing a good Ruby coder can't stand, it's ugly code. Let's fix that.</p>
+
+<p><a href="http://ruby-doc.org/core-2.1.0/Module.html">Modules</a> (and classes) have all kinds of meta-programming capabilities built in. I encourage you to go and peruse them at your leisure. What we'll focus on here is the <a href="http://ruby-doc.org/core-2.1.0/Module.html#method-i-included"><code>included</code></a> method.</p><pre class="source-code">module Dingus<br>  class &lt;&lt; self<br>    def included(base)<br>      base.send :include, Dingus::InstanceMethods<br>      base.extend Dingus::ClassMethods<br>    end<br>  end<br>end</pre><p>All of a sudden, your class now has all of the extra stuff from the <code>Dingus</code> module inside it.</p>
+
+<p>That might be jumping ahead a few steps, what with the <code>class &lt;&lt; data-preserve-html-node="true" self</code> and all. Don't forget that in Ruby, <em>everything</em> is a class, even modules. Conceptually it might be easier to understand if you look at <code>Module</code>'s ancestors: </p><pre class="source-code">&gt; Module.ancestors<br>=&gt; [Module, Object, PP::ObjectMixin, Kernel, BasicObject]<br></pre><p>So, a <code>Module</code> is just a subclass of <code>Object</code> and can be treated as such. <a href="http://www.youtube.com/watch?v=WFNEgdwjEhs">Whoa</a>. Specifically, the <code>class &lt;&lt; data-preserve-html-node="true" self</code> allows you to put class level methods on the module (you can also do this to a class as an alternative to <code>def self.whatevers</code>).</p><pre class="source-code">module Dingus<br>  class &lt;&lt; self<br>    def say_hi<br>      puts 'HI'<br>    end<br>  end<br>end<br><br>Dingus.say_hi # HI<br></pre><p>And, <code>included</code> is called when that module is included in a class. This means you can set off a chain reaction of includes with just a single one.</p>
+
+<p>This is just the start. Ruby gives you enough metaprogramming rope to build a hammock and then hang yourself with the leftovers. We'll get into some of the other ways to do this later on, including <a href="http://stackoverflow.com/q/4911353/736">blocks</a>, <a href="http://www.ruby-doc.org/core-2.1.0/Kernel.html#method-i-eval">eval</a>, and the infamous <a href="http://www.ruby-doc.org/core-2.1.0/BasicObject.html#method-i-method_missing">method-missing</a>. I encourage you to start digging into some code, and even trying a little of this yourself. Once you get a few reps in, understanding how DSLs work becomes much easier.</p>]]></content:encoded>
+      <excerpt:encoded />
+      <wp:post_name>2014/1/26/demystifying-ruby-dsls</wp:post_name>
+      <wp:post_type>post</wp:post_type>
+      <wp:post_id>3</wp:post_id>
+      <wp:status>publish</wp:status>
+      <pubDate>Sun, 26 Jan 2014 22:42:20 +0000</pubDate>
+      <wp:post_date>2014-01-26 22:42:20</wp:post_date>
+      <wp:post_date_gmt>2014-01-26 22:42:20</wp:post_date_gmt>
+      <category domain="post_tag" nicename="ruby"><![CDATA[ruby]]></category>
+      <category domain="post_tag" nicename="code"><![CDATA[code]]></category>
+      <category domain="category" nicename="programming"><![CDATA[programming]]></category>
+      <dc:creator>scott@swilliamsphoto.com</dc:creator>
+      <wp:comment_status>closed</wp:comment_status>
+    </item>
+  </channel>
+</rss>
+
