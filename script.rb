@@ -25,6 +25,7 @@ module Exporter
       post.title = element.css('title').inner_html
       post.content = element.css('content|encoded').inner_html
       post.published = element.css('wp|post_date').inner_html
+      post.filename = parse_filename element
       post.tags = element.css('category[domain=post_tag]').map do |t|
         t.attr 'nicename'
       end
@@ -42,30 +43,52 @@ module Exporter
       item.content.gsub! re, replace_with
     end
 
+    def parse_filename(element)
+      base_filename = File.basename element.css('link').inner_html
+      datetime = DateTime.parse element.css('wp|post_date').inner_html
+      "#{datetime.strftime "%Y-%m-%d"}-#{base_filename}.html"
+    end
+
+    def export_path
+      File.expand_path '../export', __FILE__
+    end
+
+    def attachment_path
+      "#{export_path}/attachments"
+    end
+
+    def post_path
+      "#{export_path}/posts"
+    end
+
     def create_folders
-      path = File.expand_path '../export', __FILE__
-      Dir.mkdir path
-      Dir.mkdir "#{path}/attachments"
-      Dir.mkdir "#{path}/posts"
+      Dir.mkdir export_path 
+      Dir.mkdir attachment_path 
+      Dir.mkdir post_path
     end
 
     def filename_from_url(url)
       File.basename url
     end
 
-    def honk
-      puts "HONK"
-    end
-
     def download_attachments
       create_folders
       all_attachments.each do |a|
-        to_path = File.expand_path "../export/attachments/#{filename_from_url a}", __FILE__
+        puts "Downloading #{a}..."
+        to_path = "#{attachment_path}/#{filename_from_url a}"
         File.open(to_path, 'wb') do |local_file|
           open(a, 'rb') do |remote_file|
             local_file.write(remote_file.read)
           end
         end
+      end
+    end
+
+    def export_posts
+      create_folders
+      all_posts.each do |p|
+        to_path = "#{post_path}/#{p.filename}"
+        File.open(to_path, 'w') { |f| f.write p.content }
       end
     end
 
@@ -87,6 +110,6 @@ module Exporter
   end
 
   class Post
-    attr_accessor :title, :content, :published, :tags
+    attr_accessor :title, :content, :published, :tags, :filename
   end
 end

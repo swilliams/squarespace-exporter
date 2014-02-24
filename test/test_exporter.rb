@@ -31,6 +31,7 @@ class ImporterTest < Test::Unit::TestCase
     assert(post.content.include?('CDATA') == false)
     assert_equal '2014-02-21 19:34:05', post.published
     assert_equal ['ruby','code'], post.tags
+    assert_equal '2014-02-21-demystifying-ruby-dsls-part-2.html', post.filename
   end
 
   def test_switched_images_over
