@@ -67,9 +67,9 @@ module Exporter
     end
 
     def create_folders
-      Dir.mkdir export_path 
-      Dir.mkdir attachment_path 
-      Dir.mkdir post_path
+      Dir.mkdir export_path unless File.directory? export_path
+      Dir.mkdir attachment_path unless File.directory? attachment_path
+      Dir.mkdir post_path unless File.directory? post_path
     end
 
     def filename_from_url(url)
