@@ -33,4 +33,10 @@ class ImporterTest < Test::Unit::TestCase
     assert(post.content.include?('static.squarespace.com') == false)
     assert(post.content.include?('images/assets'))
   end
+
+  def test_extracted_attachments
+    results = Exporter.all_attachments
+    assert_equal(2, results.count)
+    assert_equal 'http://static.squarespace.com/static/503c2d51c4aaa390413b1112/50424765e4b05fbf2352555a/5307a928e4b0bba2c5d78d0d/1393010996562/cashew.jpg', results.first
+  end
 end
