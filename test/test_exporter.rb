@@ -9,6 +9,11 @@ class ImporterTest < Test::Unit::TestCase
     @xml = Exporter.load path
   end
 
+  def teardown
+    path = File.expand_path '../../export', __FILE__
+    FileUtils.rm_rf(path) if File.directory? path
+  end
+
   def test_load
     author = @xml.css 'channel > title'
     assert_equal 'Scott Williams', author.inner_html
@@ -38,5 +43,17 @@ class ImporterTest < Test::Unit::TestCase
     results = Exporter.all_attachments
     assert_equal(2, results.count)
     assert_equal 'http://static.squarespace.com/static/503c2d51c4aaa390413b1112/50424765e4b05fbf2352555a/5307a928e4b0bba2c5d78d0d/1393010996562/cashew.jpg', results.first
+  end
+
+  def test_filename_extraction
+    url = 'http://static.squarespace.com/static/503c2d51c4aaa390413b1112/50424765e4b05fbf2352555a/5307a928e4b0bba2c5d78d0d/1393010996562/cashew.jpg'
+    filename = Exporter.filename_from_url url
+    assert_equal 'cashew.jpg', filename
+  end
+
+  def test_export_exists
+    Exporter.create_folders
+    path = File.expand_path('../../export', __FILE__)
+    assert File.directory? path
   end
 end

@@ -1,4 +1,5 @@
 require 'nokogiri'
+require 'open-uri'
 
 module Exporter
   class << self
@@ -39,6 +40,33 @@ module Exporter
       replace_with = '/images/assets/'
       re = /http:\/\/static.squarespace.com\/static\/[\w]+\/[\w]+\/[\w]+\/[\w]+\//
       item.content.gsub! re, replace_with
+    end
+
+    def create_folders
+      path = File.expand_path '../export', __FILE__
+      Dir.mkdir path
+      Dir.mkdir "#{path}/attachments"
+      Dir.mkdir "#{path}/posts"
+    end
+
+    def filename_from_url(url)
+      File.basename url
+    end
+
+    def honk
+      puts "HONK"
+    end
+
+    def download_attachments
+      create_folders
+      all_attachments.each do |a|
+        to_path = File.expand_path "../export/attachments/#{filename_from_url a}", __FILE__
+        File.open(to_path, 'wb') do |local_file|
+          open(a, 'rb') do |remote_file|
+            local_file.write(remote_file.read)
+          end
+        end
+      end
     end
 
     private
