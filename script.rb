@@ -50,7 +50,14 @@ module Exporter
 
     def parse_filename(element)
       base_filename = File.basename element.css('link').inner_html
-      datetime = DateTime.parse element.css('wp|post_date').inner_html
+      date_text = element.css('wp|post_date').inner_html
+      puts "Date: #{date_text}"
+      begin
+        datetime = DateTime.parse date_text
+      rescue
+        date_parts = date_text.split(/\s/)
+        datetime = DateTime.parse date_parts[0]
+      end
       "#{datetime.strftime "%Y-%m-%d"}-#{base_filename}.html"
     end
 
