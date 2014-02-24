@@ -7,6 +7,7 @@ module Exporter
 
     def load(path)
       @xml = Nokogiri::XML File.read(path)
+      parse_author
       @xml
     end
 
@@ -18,6 +19,10 @@ module Exporter
     def all_attachments
       attachments = all_items_of_type 'attachment'
       attachments.map { |a| parse_attachment a }
+    end
+
+    def parse_author
+      Exporter::Post.author = @xml.css('channel > title').inner_html
     end
 
     def parse_post(element)
@@ -74,7 +79,7 @@ module Exporter
     def download_attachments
       create_folders
       all_attachments.each do |a|
-        puts "Downloading #{a}..."
+        puts "Downloading #{a}"
         to_path = "#{attachment_path}/#{filename_from_url a}"
         File.open(to_path, 'wb') do |local_file|
           open(a, 'rb') do |remote_file|
@@ -88,7 +93,7 @@ module Exporter
       create_folders
       all_posts.each do |p|
         to_path = "#{post_path}/#{p.filename}"
-        File.open(to_path, 'w') { |f| f.write p.content }
+        File.open(to_path, 'w') { |f| f.write p.generate }
       end
     end
 
@@ -111,5 +116,21 @@ module Exporter
 
   class Post
     attr_accessor :title, :content, :published, :tags, :filename
+    
+    class << self
+      attr_accessor :author
+    end
+
+    def generate
+      %{---
+layout: post
+title: "#{@title}"
+date: #{@published}
+comments: false
+author: #{self.class.author}
+categories: [#{@tags.join(',')}]
+---
+#{@content}}
+    end
   end
 end

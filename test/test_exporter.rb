@@ -6,6 +6,7 @@ require_relative '../script'
 class ImporterTest < Test::Unit::TestCase
   def setup
     path = (File.expand_path('../factory.xml', __FILE__))
+    Exporter::Post.author = nil
     @xml = Exporter.load path
   end
 
@@ -34,6 +35,11 @@ class ImporterTest < Test::Unit::TestCase
     assert_equal '2014-02-21-demystifying-ruby-dsls-part-2.html', post.filename
   end
 
+  def test_parse_author
+    Exporter.all_posts
+    assert_equal 'Scott Williams', Exporter::Post.author
+  end
+
   def test_switched_images_over
     post = Exporter.all_posts.first
     assert(post.content.include?('static.squarespace.com') == false)
@@ -56,5 +62,24 @@ class ImporterTest < Test::Unit::TestCase
     Exporter.create_folders
     path = File.expand_path('../../export', __FILE__)
     assert File.directory? path
+  end
+
+  def test_generated_post_includes_header
+    post = Exporter::Post.new
+    Exporter::Post.author = 'Scott Williams'
+    post.title = 'Sample Post'
+    post.content = 'derp derp'
+    post.published = '2014-02-21 19:34:05'
+    post.tags = %w(Ruby Code)
+    header = %q(---
+layout: post
+title: "Sample Post"
+date: 2014-02-21 19:34:05
+comments: false
+author: Scott Williams
+categories: [Ruby,Code]
+---
+derp derp)
+    assert_equal header, post.generate
   end
 end
