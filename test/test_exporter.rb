@@ -18,4 +18,19 @@ class ImporterTest < Test::Unit::TestCase
     results = Exporter.all_posts
     assert_equal 2, results.count
   end
+
+  def test_parsed_item
+    post = Exporter.all_posts.first
+    assert_equal 'Demystifying Ruby DSLs — Part 2', post.title
+    assert(post.content.nil? == false)
+    assert(post.content.include?('CDATA') == false)
+    assert_equal '2014-02-21 19:34:05', post.published
+    assert_equal ['ruby','code'], post.tags
+  end
+
+  def test_switched_images_over
+    post = Exporter.all_posts.first
+    assert(post.content.include?('static.squarespace.com') == false)
+    assert(post.content.include?('images/assets'))
+  end
 end
