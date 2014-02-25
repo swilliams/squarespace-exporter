@@ -7,7 +7,7 @@ class ImporterTest < Test::Unit::TestCase
   def setup
     @url = 'http://blog.swilliams.me/words/2014/2/21/demystifying-ruby-dsls-part-2'
     @json = File.read(File.expand_path('../factory.json', __FILE__))
-    stub_request(:get, @url).to_return body: @json
+    stub_request(:get, "#{@url}?format=json-pretty").to_return body: @json
   end
 
   def teardown
@@ -79,6 +79,12 @@ class ImporterTest < Test::Unit::TestCase
     Exporter.create_folders
     path = File.expand_path('../../export', __FILE__)
     assert File.directory? path
+  end
+
+  def test_local_path_removes_hashes
+    url = "derp-#img.jpg"
+    post = Exporter::Post.new
+    assert(post.local_path(url).include?("derp.jpg"))
   end
 
   def test_generated_post_includes_header

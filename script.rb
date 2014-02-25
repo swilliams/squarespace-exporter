@@ -146,7 +146,8 @@ module Exporter
     end
 
     def local_path(img_url)
-      Exporter.unique_attachment_name Exporter.filename_from_url(img_url)
+      path = Exporter.unique_attachment_name Exporter.filename_from_url(img_url)
+      path.gsub '-#img', ''
     end
 
     def download_image(img_url)
