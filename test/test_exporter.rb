@@ -25,6 +25,11 @@ class ImporterTest < Test::Unit::TestCase
     assert_equal 2, results.count
   end
 
+  def test_unique_attachment_name
+    filename = 'derp.png'
+    assert(Exporter.unique_attachment_name(filename).include?(filename))
+  end
+
   def test_parsed_item
     post = Exporter.all_posts.first
     assert_equal 'Demystifying Ruby DSLs — Part 2', post.title

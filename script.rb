@@ -1,5 +1,6 @@
 require 'nokogiri'
 require 'open-uri'
+require 'securerandom'
 
 module Exporter
   class << self
@@ -51,7 +52,6 @@ module Exporter
     def parse_filename(element)
       base_filename = File.basename element.css('link').inner_html
       date_text = element.css('wp|post_date').inner_html
-      puts "Date: #{date_text}"
       begin
         datetime = DateTime.parse date_text
       rescue
@@ -83,11 +83,18 @@ module Exporter
       File.basename url
     end
 
+    def unique_attachment_name(filename)
+      path = "#{attachment_path}/#{filename}"
+      if File.exists? path
+        path = "#{attachment_path}/#{SecureRandom.hex}-#{filename}"
+      end
+      path
+    end
+
     def download_attachments
       create_folders
       all_attachments.each do |a|
-        puts "Downloading #{a}"
-        to_path = "#{attachment_path}/#{filename_from_url a}"
+        to_path = unique_attachment_name filename_from_url(a)
         File.open(to_path, 'wb') do |local_file|
           open(a, 'rb') do |remote_file|
             local_file.write(remote_file.read)
