@@ -54,7 +54,7 @@ module Exporter
       post.content.scan(image_regex).each do |img_url|
         puts "Downloading: #{img_url}"
         to_path = unique_attachment_name filename_from_url(img_url)
-        post.content.gsub img_url, "/images/assets/#{File.basename(to_path)}"
+        post.content.gsub! img_url, "/images/assets/#{File.basename(to_path)}"
         begin
           File.open(to_path, 'wb') do |local_file|
             open(img_url, 'rb') do |remote_file|
