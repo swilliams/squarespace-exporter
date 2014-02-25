@@ -1,5 +1,7 @@
 require 'nokogiri'
 require 'open-uri'
+require 'securerandom'
+require 'pry'
 
 module Exporter
   class << self
@@ -7,6 +9,7 @@ module Exporter
 
     def load(path)
       @xml = Nokogiri::XML File.read(path)
+      create_folders
       parse_author
       @xml
     end
@@ -34,6 +37,7 @@ module Exporter
       post.tags = element.css('category[domain=post_tag]').map do |t|
         t.attr 'nicename'
       end
+      download_attachments_for_post post
       change_image_urls post
       change_self_ref_urls post
       post
@@ -41,6 +45,28 @@ module Exporter
 
     def parse_attachment(element)
       element.css('wp|attachment_url').inner_html
+    end
+
+    def image_regex
+      /http:\/\/static.squarespace.com\/static\/[^"]+/
+    end
+
+    def download_attachments_for_post(post)
+      post.content.scan(image_regex).each do |img_url|
+        puts "Downloading: #{img_url}"
+        to_path = unique_attachment_name filename_from_url(img_url)
+        post.content.gsub img_url, "/images/assets/#{File.basename(to_path)}"
+        begin
+          File.open(to_path, 'wb') do |local_file|
+            open(img_url, 'rb') do |remote_file|
+              local_file.write(remote_file.read)
+            end
+          end
+        rescue Exception => ex
+          puts "ERROR: #{img_url} #{ex}"
+          next
+        end
+      end
     end
 
     def change_image_urls(item)
@@ -57,7 +83,13 @@ module Exporter
 
     def parse_filename(element)
       base_filename = File.basename element.css('link').inner_html
-      datetime = DateTime.parse element.css('wp|post_date').inner_html
+      date_text = element.css('wp|post_date').inner_html
+      begin
+        datetime = DateTime.parse date_text
+      rescue
+        date_parts = date_text.split(/\s/)
+        datetime = DateTime.parse date_parts[0]
+      end
       "#{datetime.strftime "%Y-%m-%d"}-#{base_filename}.html"
     end
 
@@ -74,24 +106,37 @@ module Exporter
     end
 
     def create_folders
-      Dir.mkdir export_path 
-      Dir.mkdir attachment_path 
-      Dir.mkdir post_path
+      Dir.mkdir export_path unless File.directory? export_path
+      Dir.mkdir attachment_path unless File.directory? attachment_path
+      Dir.mkdir post_path unless File.directory? post_path
     end
 
     def filename_from_url(url)
       File.basename url
     end
 
+    def unique_attachment_name(filename)
+      path = "#{attachment_path}/#{filename}"
+      if File.exists? path
+        path = "#{attachment_path}/#{SecureRandom.hex}-#{filename}"
+      end
+      path
+    end
+
     def download_attachments
       create_folders
       all_attachments.each do |a|
-        puts "Downloading #{a}"
-        to_path = "#{attachment_path}/#{filename_from_url a}"
-        File.open(to_path, 'wb') do |local_file|
-          open(a, 'rb') do |remote_file|
-            local_file.write(remote_file.read)
+        puts "Downloading: #{a}"
+        to_path = unique_attachment_name filename_from_url(a)
+        begin
+          File.open(to_path, 'wb') do |local_file|
+            open(a, 'rb') do |remote_file|
+              local_file.write(remote_file.read)
+            end
           end
+        rescue Exception => ex
+          puts "ERROR: #{a} #{ex}"
+          next
         end
       end
     end
