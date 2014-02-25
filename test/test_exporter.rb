@@ -1,6 +1,7 @@
 require 'test/unit'
 require 'webmock/test_unit'
 require 'pry'
+require 'reverse_markdown'
 require_relative '../script'
 
 class ImporterTest < Test::Unit::TestCase
@@ -12,6 +13,13 @@ class ImporterTest < Test::Unit::TestCase
 
   def teardown
     FileUtils.rm_rf(Exporter.export_path) if File.directory? Exporter.export_path
+  end
+
+  def test_to_markdown
+    post = Exporter.parse_post @json
+    html = post.content
+    md = ReverseMarkdown.parse html
+    puts md
   end
 
   def test_load_url_returns_stuff
