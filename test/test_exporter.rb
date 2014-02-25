@@ -1,28 +1,40 @@
 require 'test/unit'
-require 'nokogiri'
+require 'webmock/test_unit'
 require 'pry'
 require_relative '../script'
 
 class ImporterTest < Test::Unit::TestCase
   def setup
-    path = (File.expand_path('../factory.xml', __FILE__))
-    Exporter::Post.author = nil
-    @xml = Exporter.load path
+    @url = 'http://blog.swilliams.me/words/2014/2/21/demystifying-ruby-dsls-part-2'
+    @json = File.read(File.expand_path('../factory.json', __FILE__))
+    stub_request(:get, @url).to_return body: @json
   end
 
   def teardown
-    path = File.expand_path '../../export', __FILE__
-    FileUtils.rm_rf(path) if File.directory? path
+    FileUtils.rm_rf(Exporter.export_path) if File.directory? Exporter.export_path
   end
 
-  def test_load
-    author = @xml.css 'channel > title'
-    assert_equal 'Scott Williams', author.inner_html
+  def test_load_url_returns_stuff
+    response = Exporter.load_url @url
+    assert(response.nil? == false)
   end
 
-  def test_each_blog
-    results = Exporter.all_posts
-    assert_equal 2, results.count
+  def test_success_response
+    response = Exporter.load_url @url
+    assert(Exporter.response_is_success(response) == true)
+  end
+
+  def test_parse_post
+    post = Exporter.parse_post @json
+    assert(post.nil? == false)
+    assert(post.author == 'Scott Williams')
+    assert_equal( "Demystifying Ruby DSLs \u2014 Part 2", post.title)
+    assert_equal(1393011245936, post.published)
+    assert_equal("2014/2/21/demystifying-ruby-dsls-part-2", post.url)
+    assert_equal(['ruby','code'], post.tags)
+    assert_equal('http://blog.swilliams.me/words/2014/1/26/demystifying-ruby-dsls', post.next_url)
+    assert(post.content.nil? == false)
+    assert(post.content.empty? == false)
   end
 
   def test_unique_attachment_name
@@ -30,38 +42,32 @@ class ImporterTest < Test::Unit::TestCase
     assert(Exporter.unique_attachment_name(filename).include?(filename))
   end
 
-  def test_parsed_item
-    post = Exporter.all_posts.first
-    assert_equal 'Demystifying Ruby DSLs — Part 2', post.title
-    assert(post.content.nil? == false)
-    assert(post.content.include?('CDATA') == false)
-    assert_equal '2014-02-21 19:34:05', post.published
-    assert_equal ['ruby','code'], post.tags
-    assert_equal '2014-02-21-demystifying-ruby-dsls-part-2.html', post.filename
+  def test_scan_for_imgs
+    post = Exporter.parse_post @json
+    assert_equal(2, post.squarespace_images.count)
   end
 
-  def test_parse_author
-    Exporter.all_posts
-    assert_equal 'Scott Williams', Exporter::Post.author
-  end
+  #def test_parsed_item
+    #post = Exporter.all_posts.first
+    #assert_equal 'Demystifying Ruby DSLs — Part 2', post.title
+    #assert(post.content.nil? == false)
+    #assert(post.content.include?('CDATA') == false)
+    #assert_equal '2014-02-21 19:34:05', post.published
+    #assert_equal ['ruby','code'], post.tags
+    #assert_equal '2014-02-21-demystifying-ruby-dsls-part-2.html', post.filename
+  #end
 
-  def test_switched_images_over
-    post = Exporter.all_posts.first
-    assert(post.content.include?('static.squarespace.com') == false)
-    assert(post.content.include?('images/assets'))
-  end
+  #def test_switched_images_over
+    #post = Exporter.all_posts.first
+    #assert(post.content.include?('static.squarespace.com') == false)
+    #assert(post.content.include?('images/assets'))
+  #end
 
-  def test_self_ref_urls
-    post = Exporter.all_posts.first
-    assert(post.content.include?('blog.swilliams.me') == false)
-    assert(post.content.include?('/words'))
-  end
-
-  def test_extracted_attachments
-    results = Exporter.all_attachments
-    assert_equal(2, results.count)
-    assert_equal 'http://static.squarespace.com/static/503c2d51c4aaa390413b1112/50424765e4b05fbf2352555a/5307a928e4b0bba2c5d78d0d/1393010996562/cashew.jpg', results.first
-  end
+  #def test_self_ref_urls
+    #post = Exporter.all_posts.first
+    #assert(post.content.include?('blog.swilliams.me') == false)
+    #assert(post.content.include?('/words'))
+  #end
 
   def test_filename_extraction
     url = 'http://static.squarespace.com/static/503c2d51c4aaa390413b1112/50424765e4b05fbf2352555a/5307a928e4b0bba2c5d78d0d/1393010996562/cashew.jpg'

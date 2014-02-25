@@ -1,72 +1,80 @@
-require 'nokogiri'
-require 'open-uri'
+require 'json'
 require 'securerandom'
+require 'open-uri'
 require 'pry'
+
+# get start url
+# get item -> author -> displayName
+# item -> publishOn is int date
+# item -> title
+# item -> body
+# item -> tags
+# parse body to fix urls
+# turn body into markdown?
+# get next url from pagination -> nextItem -> urlId
 
 module Exporter
   class << self
     attr_accessor :xml
 
-    def load(path)
-      @xml = Nokogiri::XML File.read(path)
-      create_folders
-      parse_author
-      @xml
+    def load_url(url)
+      http = create_http url
+      request = Net::HTTP::Get.new url
+      http.request request
     end
 
-    def all_posts
-      posts = all_items_of_type 'post'
-      posts.map { |p| parse_post p }
+    def create_http(url)
+      log 'GET', url
+      uri = URI json_format_url(url)
+      http = Net::HTTP.new(uri.hostname, uri.port)
+      http.use_ssl = true if uri.scheme == 'https'
+      http
+    end
+    
+    def json_format_url(url)
+      "#{url}?format=json-pretty"
     end
 
-    def all_attachments
-      attachments = all_items_of_type 'attachment'
-      attachments.map { |a| parse_attachment a }
+    def response_is_success(response)
+      response.code == '200'
     end
 
-    def parse_author
-      Exporter::Post.author = @xml.css('channel > title').inner_html
-    end
-
-    def parse_post(element)
+    def parse_post(post_text)
+      json = JSON.parse post_text
       post = Post.new
-      post.title = element.css('title').inner_html
-      post.content = element.css('content|encoded').inner_html
-      post.published = element.css('wp|post_date').inner_html
-      post.filename = parse_filename element
-      post.tags = element.css('category[domain=post_tag]').map do |t|
-        t.attr 'nicename'
-      end
-      download_attachments_for_post post
-      change_image_urls post
-      change_self_ref_urls post
+
+      root_url = json["website"]["authenticUrl"]
+
+      post.author = json["item"]["author"]["displayName"]
+      post.title = json["item"]["title"]
+      post.published = json["item"]["publishOn"]
+      post.url = json["item"]["urlId"]
+      post.tags = json["item"]["tags"]
+      next_url = json["pagination"]["nextItem"]["fullUrl"]
+      post.next_url = "#{root_url}#{next_url}"
+      post.content = json["item"]["body"]
       post
+    end
+
+    def handle_response(response)
+      if response_is_success response
+        parse_post response.body
+      else
+        log_error response
+        return nil
+      end
+    end
+
+    def log_error(response)
+      log('ERROR', "#{response.code} - #{response.body}")
+    end
+
+    def log(type, message)
+      puts "#{type} #{message}"
     end
 
     def parse_attachment(element)
       element.css('wp|attachment_url').inner_html
-    end
-
-    def image_regex
-      /http:\/\/static.squarespace.com\/static\/[^"]+/
-    end
-
-    def download_attachments_for_post(post)
-      post.content.scan(image_regex).each do |img_url|
-        puts "Downloading: #{img_url}"
-        to_path = unique_attachment_name filename_from_url(img_url)
-        post.content.gsub! img_url, "/images/assets/#{File.basename(to_path)}"
-        begin
-          File.open(to_path, 'wb') do |local_file|
-            open(img_url, 'rb') do |remote_file|
-              local_file.write(remote_file.read)
-            end
-          end
-        rescue Exception => ex
-          puts "ERROR: #{img_url} #{ex}"
-          next
-        end
-      end
     end
 
     def change_image_urls(item)
@@ -123,24 +131,6 @@ module Exporter
       path
     end
 
-    def download_attachments
-      create_folders
-      all_attachments.each do |a|
-        puts "Downloading: #{a}"
-        to_path = unique_attachment_name filename_from_url(a)
-        begin
-          File.open(to_path, 'wb') do |local_file|
-            open(a, 'rb') do |remote_file|
-              local_file.write(remote_file.read)
-            end
-          end
-        rescue Exception => ex
-          puts "ERROR: #{a} #{ex}"
-          next
-        end
-      end
-    end
-
     def export_posts
       create_folders
       all_posts.each do |p|
@@ -149,29 +139,47 @@ module Exporter
       end
     end
 
-    private
-    def all_items_of_type(type)
-      items = @xml.css 'channel > item'
-      results = []
-      items.each do |item|
-        results << item if is_type? type, item
-      end
-      results
-    end
-
-    def is_type?(type, item)
-      item.css('wp|post_type').inner_html == type
-    end
-
-
   end
 
   class Post
-    attr_accessor :title, :content, :published, :tags, :filename
+    attr_accessor :title, :author, :content, :published, :tags, :filename, :url, :next_url
     
     class << self
       attr_accessor :author
     end
+
+    def image_regex
+      /http:\/\/static.squarespace.com\/static\/[^"]+/
+    end
+
+    def squarespace_images
+      @content.scan(image_regex).uniq
+    end
+
+    def local_path(img_url)
+      Exporter.unique_attachment_name Exporter.filename_from_url(img_url)
+    end
+
+    def download_image(img_url)
+      to_path = local_path img_url
+      @content.gsub! img_url, "/images/assets/#{File.basename(to_path)}"
+      begin
+        File.open(to_path, 'wb') do |local_file|
+          open(img_url, 'rb') do |remote_file|
+            local_file.write remote_file.read
+          end
+        end
+      rescue Exception => ex
+        Exporter.log_error "#{img_url} #{ex}"
+      end
+    end
+
+    def download_attachments(post)
+      squarespace_images.each do |img_url|
+        download_image img_url
+      end
+    end
+    
 
     def generate
       %{---
