@@ -51,6 +51,12 @@ class ImporterTest < Test::Unit::TestCase
     assert(post.content.include?('images/assets'))
   end
 
+  def test_self_ref_urls
+    post = Exporter.all_posts.first
+    assert(post.content.include?('blog.swilliams.me') == false)
+    assert(post.content.include?('/words'))
+  end
+
   def test_extracted_attachments
     results = Exporter.all_attachments
     assert_equal(2, results.count)

@@ -39,6 +39,7 @@ module Exporter
       end
       download_attachments_for_post post
       change_image_urls post
+      change_self_ref_urls post
       post
     end
 
@@ -71,6 +72,12 @@ module Exporter
     def change_image_urls(item)
       replace_with = '/images/assets/'
       re = /http:\/\/static.squarespace.com\/static\/[\w]+\/[\w]+\/[\w]+\/[\w]+\//
+      item.content.gsub! re, replace_with
+    end
+
+    def change_self_ref_urls(item)
+      replace_with = '/words'
+      re = /http:\/\/blog\.swilliams\.me\/words/
       item.content.gsub! re, replace_with
     end
 
