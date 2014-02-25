@@ -1,6 +1,7 @@
 require 'nokogiri'
 require 'open-uri'
 require 'securerandom'
+require 'pry'
 
 module Exporter
   class << self
@@ -8,6 +9,7 @@ module Exporter
 
     def load(path)
       @xml = Nokogiri::XML File.read(path)
+      create_folders
       parse_author
       @xml
     end
@@ -35,12 +37,35 @@ module Exporter
       post.tags = element.css('category[domain=post_tag]').map do |t|
         t.attr 'nicename'
       end
+      download_attachments_for_post post
       change_image_urls post
       post
     end
 
     def parse_attachment(element)
       element.css('wp|attachment_url').inner_html
+    end
+
+    def image_regex
+      /http:\/\/static.squarespace.com\/static\/[^"]+/
+    end
+
+    def download_attachments_for_post(post)
+      post.content.scan(image_regex).each do |img_url|
+        puts "Downloading: #{img_url}"
+        to_path = unique_attachment_name filename_from_url(img_url)
+        post.content.gsub img_url, "/images/assets/#{File.basename(to_path)}"
+        begin
+          File.open(to_path, 'wb') do |local_file|
+            open(img_url, 'rb') do |remote_file|
+              local_file.write(remote_file.read)
+            end
+          end
+        rescue Exception => ex
+          puts "ERROR: #{img_url} #{ex}"
+          next
+        end
+      end
     end
 
     def change_image_urls(item)
@@ -94,11 +119,17 @@ module Exporter
     def download_attachments
       create_folders
       all_attachments.each do |a|
+        puts "Downloading: #{a}"
         to_path = unique_attachment_name filename_from_url(a)
-        File.open(to_path, 'wb') do |local_file|
-          open(a, 'rb') do |remote_file|
-            local_file.write(remote_file.read)
+        begin
+          File.open(to_path, 'wb') do |local_file|
+            open(a, 'rb') do |remote_file|
+              local_file.write(remote_file.read)
+            end
           end
+        rescue Exception => ex
+          puts "ERROR: #{a} #{ex}"
+          next
         end
       end
     end
