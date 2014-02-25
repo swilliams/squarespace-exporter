@@ -1,5 +1,6 @@
 require 'json'
 require 'securerandom'
+require 'net/http'
 require 'open-uri'
 require 'pry'
 
@@ -19,7 +20,7 @@ module Exporter
 
     def load_url(url)
       http = create_http url
-      request = Net::HTTP::Get.new url
+      request = Net::HTTP::Get.new json_format_url(url)
       http.request request
     end
 
@@ -89,18 +90,6 @@ module Exporter
       item.content.gsub! re, replace_with
     end
 
-    def parse_filename(element)
-      base_filename = File.basename element.css('link').inner_html
-      date_text = element.css('wp|post_date').inner_html
-      begin
-        datetime = DateTime.parse date_text
-      rescue
-        date_parts = date_text.split(/\s/)
-        datetime = DateTime.parse date_parts[0]
-      end
-      "#{datetime.strftime "%Y-%m-%d"}-#{base_filename}.html"
-    end
-
     def export_path
       File.expand_path '../export', __FILE__
     end
@@ -166,15 +155,16 @@ module Exporter
       begin
         File.open(to_path, 'wb') do |local_file|
           open(img_url, 'rb') do |remote_file|
-            local_file.write remote_file.read
+            local_file.write(remote_file.read)
           end
         end
       rescue Exception => ex
-        Exporter.log_error "#{img_url} #{ex}"
+        Exporter.log 'ERROR', "#{img_url} #{ex}"
       end
     end
 
-    def download_attachments(post)
+    def download_attachments
+      Exporter.create_folders
       squarespace_images.each do |img_url|
         download_image img_url
       end

@@ -9,16 +9,13 @@ end
 desc "Run tests"
 task :default => :test
 
-task :download_attachments do
-  path_to_xml = ENV["PATH"]
-  Exporter.load path_to_xml
-  Exporter.download_attachments
-end
-
-task :export_posts do
-  path_to_xml = ENV["PATH"]
-  Exporter.load path_to_xml
-  Exporter.export_posts
+task :derp do
+  url = ENV["URL"]
+  response = Exporter.load_url url
+  post = Exporter.handle_response response
+  unless post.nil?
+    post.download_attachments
+  end
 end
 
 task :clean do
