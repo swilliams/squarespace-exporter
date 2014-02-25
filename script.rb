@@ -50,6 +50,7 @@ module Exporter
       post.title = json["item"]["title"]
       post.published = json["item"]["publishOn"]
       post.url = json["item"]["urlId"]
+      post.filename = "#{File.basename post.url}.html"
       post.tags = json["item"]["tags"]
       next_url = json["pagination"]["nextItem"]["fullUrl"]
       post.next_url = "#{root_url}#{next_url}"
@@ -76,18 +77,6 @@ module Exporter
 
     def parse_attachment(element)
       element.css('wp|attachment_url').inner_html
-    end
-
-    def change_image_urls(item)
-      replace_with = '/images/assets/'
-      re = /http:\/\/static.squarespace.com\/static\/[\w]+\/[\w]+\/[\w]+\/[\w]+\//
-      item.content.gsub! re, replace_with
-    end
-
-    def change_self_ref_urls(item)
-      replace_with = '/words'
-      re = /http:\/\/blog\.swilliams\.me\/words/
-      item.content.gsub! re, replace_with
     end
 
     def export_path
@@ -119,15 +108,6 @@ module Exporter
       end
       path
     end
-
-    def export_posts
-      create_folders
-      all_posts.each do |p|
-        to_path = "#{post_path}/#{p.filename}"
-        File.open(to_path, 'w') { |f| f.write p.generate }
-      end
-    end
-
   end
 
   class Post
@@ -171,14 +151,37 @@ module Exporter
       end
     end
     
+    def change_self_ref_urls
+      replace_with = '/words'
+      re = /http:\/\/blog\.swilliams\.me\/words/
+      @content.gsub! re, replace_with
+    end
+
+    def fix_image_tags
+      re = /data-src/
+      @content.gsub! re, 'src'
+    end
+
+    def export
+      download_attachments
+      change_self_ref_urls
+      fix_image_tags
+      to_path = "#{Exporter.post_path}/#{published_date}-#{@filename}"
+      File.open(to_path, 'w') { |f| f.write generate }
+    end
+
+    def published_date
+      t = Time.at(@published / 1000)
+      t.strftime "%Y-%m-%d"
+    end
 
     def generate
       %{---
 layout: post
 title: "#{@title}"
-date: #{@published}
+date: #{published_date}
 comments: false
-author: #{self.class.author}
+author: #{@author}
 categories: [#{@tags.join(',')}]
 ---
 #{@content}}

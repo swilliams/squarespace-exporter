@@ -14,7 +14,7 @@ task :derp do
   response = Exporter.load_url url
   post = Exporter.handle_response response
   unless post.nil?
-    post.download_attachments
+    post.export
   end
 end
 
