@@ -3,12 +3,12 @@ require_relative 'script'
 
 Rake::TestTask.new do |t|
   t.libs << 'test'
-  #puts t.libs
 end
 
 desc "Run tests"
 task :default => :test
 
+# Gets a single post and exports it.
 task :single do
   url = ENV["URL"]
   response = Exporter.load_url url
@@ -18,11 +18,13 @@ task :single do
   end
 end
 
+# Walks through the post history and exports them all.
 task :crawl do
   url = ENV["URL"]
   Exporter.get_all_posts url
 end
 
+# Removes the exported files and folders.
 task :clean do
   path = File.expand_path '../export', __FILE__
   FileUtils.rm_rf(path) if File.directory? path
