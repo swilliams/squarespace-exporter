@@ -20,7 +20,7 @@ class ImporterTest < Test::Unit::TestCase
     post = Exporter::Post.new
     post.content = File.read(file)
     results = post.strip_html
-    puts results
+    assert(results.nil? == false)
   end
 
   def test_load_url_returns_stuff
@@ -78,7 +78,8 @@ class ImporterTest < Test::Unit::TestCase
   def test_local_path_removes_hashes
     url = "derp-#img.jpg"
     post = Exporter::Post.new
-    assert(post.local_path(url).include?("derp.jpg"))
+    result = post.local_path(url)
+    assert(result.include?("derp.jpg"))
   end
 
   def test_remove_squarespace_urls

@@ -141,14 +141,12 @@ module Exporter
 
     def local_path(img_url)
       path = Exporter.unique_attachment_name Exporter.filename_from_url(img_url)
-      path.gsub '-#img', ''
       path << ".jpg" if File.extname(path).empty?
-      path
+      path.gsub '-#img', ''
     end
 
     def download_image(img_url)
       to_path = local_path img_url
-      binding.pry
       @content.gsub! img_url, "/images/assets/#{File.basename(to_path)}"
       begin
         File.open(to_path, 'wb') do |local_file|
@@ -183,6 +181,7 @@ module Exporter
       download_attachments
       change_self_ref_urls
       fix_image_tags
+      @content = strip_html
       to_path = "#{Exporter.post_path}/#{published_date}-#{@filename}"
       File.open(to_path, 'w') { |f| f.write generate }
     end
@@ -221,7 +220,7 @@ categories: [#{@tags.join(',')}]
         method_name = "handle_#{node.name}"
         send method_name, node if respond_to? method_name
       end
-      @doc.to_html indent: 2
+      @doc.css('body').inner_html
     end
 
     def handle_div(node)
