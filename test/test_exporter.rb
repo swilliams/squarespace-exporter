@@ -15,12 +15,12 @@ class ImporterTest < Test::Unit::TestCase
     FileUtils.rm_rf(Exporter.export_path) if File.directory? Exporter.export_path
   end
 
-  def test_to_markdown
-    post = Exporter.parse_post @json
-    html = post.content
-    md = ReverseMarkdown.parse html
-    puts md
-  end
+  #def test_to_markdown
+    #post = Exporter.parse_post @json
+    #html = post.content
+    #md = ReverseMarkdown.parse html
+    #puts md
+  #end
 
   def test_load_url_returns_stuff
     response = Exporter.load_url @url
@@ -85,6 +85,14 @@ class ImporterTest < Test::Unit::TestCase
     post.content = 'thing <a href="http://blog.swilliams.me/words/foo">test</a>'
     post.change_self_ref_urls
     assert_equal 'thing <a href="/words/foo">test</a>', post.content
+  end
+
+  def test_next_url
+    post = Exporter::Post.new
+    post.root_url = 'http://blog.swilliams.me'
+    post.next_url = '/words/next-thing'
+    next_url = post.build_next_url
+    assert_equal 'http://blog.swilliams.me/words/next-thing', next_url
   end
 
   def test_generated_post_includes_header

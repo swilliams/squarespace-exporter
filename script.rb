@@ -44,7 +44,7 @@ module Exporter
       json = JSON.parse post_text
       post = Post.new
 
-      root_url = json["website"]["authenticUrl"]
+      post.root_url = json["website"]["authenticUrl"]
 
       post.author = json["item"]["author"]["displayName"]
       post.title = json["item"]["title"]
@@ -53,7 +53,7 @@ module Exporter
       post.filename = "#{File.basename post.url}.html"
       post.tags = json["item"]["tags"]
       next_url = json["pagination"]["nextItem"]["fullUrl"]
-      post.next_url = "#{root_url}#{next_url}"
+      post.next_url = "#{post.root_url}#{next_url}"
       post.content = json["item"]["body"]
       post
     end
@@ -111,7 +111,7 @@ module Exporter
   end
 
   class Post
-    attr_accessor :title, :author, :content, :published, :tags, :filename, :url, :next_url
+    attr_accessor :root_url, :title, :author, :content, :published, :tags, :filename, :url, :next_url
     
     class << self
       attr_accessor :author
@@ -173,6 +173,10 @@ module Exporter
     def published_date
       t = Time.at(@published / 1000)
       t.strftime "%Y-%m-%d"
+    end
+
+    def build_next_url
+      "#{@root_url}#{@next_url}"
     end
 
     def generate
