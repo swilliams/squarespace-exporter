@@ -11,11 +11,7 @@ task :default => :test
 
 task :derp do
   url = ENV["URL"]
-  response = Exporter.load_url url
-  post = Exporter.handle_response response
-  unless post.nil?
-    post.export
-  end
+  Exporter.get_all_posts url
 end
 
 task :clean do

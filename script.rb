@@ -18,6 +18,18 @@ module Exporter
   class << self
     attr_accessor :xml
 
+    def get_all_posts(first_url)
+      url = first_url
+      while url
+        response = Exporter.load_url url
+        post = handle_response response
+        unless post.nil?
+          post.export
+          url = post.next_url
+        end
+      end
+    end
+
     def load_url(url)
       http = create_http url
       request = Net::HTTP::Get.new json_format_url(url)
@@ -44,17 +56,18 @@ module Exporter
       json = JSON.parse post_text
       post = Post.new
 
-      post.root_url = json["website"]["authenticUrl"]
+      root_url = json["website"]["authenticUrl"]
 
       post.author = json["item"]["author"]["displayName"]
       post.title = json["item"]["title"]
       post.published = json["item"]["publishOn"]
       post.url = json["item"]["urlId"]
       post.filename = "#{File.basename post.url}.html"
-      post.tags = json["item"]["tags"]
-      next_url = json["pagination"]["nextItem"]["fullUrl"]
-      post.next_url = "#{post.root_url}#{next_url}"
+      post.tags = json["item"]["tags"] || []
+      next_url = json["pagination"]["nextItem"]["fullUrl"] unless json["pagination"]["nextItem"].nil?
+      post.next_url = "#{root_url}#{next_url}"
       post.content = json["item"]["body"]
+      post.content = json["item"]["promotedBlock"] if post.content.nil? || post.content.empty?
       post
     end
 
@@ -111,7 +124,7 @@ module Exporter
   end
 
   class Post
-    attr_accessor :root_url, :title, :author, :content, :published, :tags, :filename, :url, :next_url
+    attr_accessor :next_url, :title, :author, :content, :published, :tags, :filename, :url
     
     class << self
       attr_accessor :author
@@ -173,10 +186,6 @@ module Exporter
     def published_date
       t = Time.at(@published / 1000)
       t.strftime "%Y-%m-%d"
-    end
-
-    def build_next_url
-      "#{@root_url}#{@next_url}"
     end
 
     def generate
