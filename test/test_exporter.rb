@@ -15,18 +15,13 @@ class ImporterTest < Test::Unit::TestCase
     FileUtils.rm_rf(Exporter.export_path) if File.directory? Exporter.export_path
   end
 
-  def test_derp
-    s = File.read(File.expand_path('../factory2.json', __FILE__))
-    json = JSON.parse s
-    puts "DERP: #{json['item']['promotedBlock']}"
+  def test_strip
+    file = File.expand_path('../2006-08-14-night-factory.html', __FILE__)
+    post = Exporter::Post.new
+    post.content = File.read(file)
+    results = post.strip_html
+    puts results
   end
-
-  #def test_to_markdown
-    #post = Exporter.parse_post @json
-    #html = post.content
-    #md = ReverseMarkdown.parse html
-    #puts md
-  #end
 
   def test_load_url_returns_stuff
     response = Exporter.load_url @url

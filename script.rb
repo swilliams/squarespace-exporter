@@ -2,6 +2,7 @@ require 'json'
 require 'securerandom'
 require 'net/http'
 require 'open-uri'
+require 'nokogiri'
 require 'pry'
 
 # get start url
@@ -188,6 +189,11 @@ module Exporter
       t.strftime "%Y-%m-%d"
     end
 
+    def strip_html
+      stripper = HtmlStripper.new @content
+      stripper.strip
+    end
+
     def generate
       %{---
 layout: post
@@ -198,6 +204,44 @@ author: #{@author}
 categories: [#{@tags.join(',')}]
 ---
 #{@content}}
+    end
+  end
+
+  class HtmlStripper
+    
+    def initialize(html_text)
+      @doc = Nokogiri::HTML(html_text)
+    end
+
+    def strip
+      @doc.traverse do |node|
+        method_name = "handle_#{node.name}"
+        send method_name, node if respond_to? method_name
+      end
+      @doc.to_html indent: 2
+    end
+
+    def handle_div(node)
+      node.attributes.each do |key, value|
+        node.attributes[key].remove
+      end
+    end
+
+    def handle_img(node)
+      whitelist = %w(src alt width height)
+      node.attributes.each do |key, value|
+        node.attributes[key].remove unless whitelist.include? key
+      end
+    end
+
+    def handle_span(node)
+      node.attributes.each do |key, value|
+        node.attributes[key].remove
+      end
+    end
+
+    def handle_noscript(node)
+      node.remove
     end
   end
 end
