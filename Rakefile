@@ -9,7 +9,16 @@ end
 desc "Run tests"
 task :default => :test
 
-task :derp do
+task :single do
+  url = ENV["URL"]
+  response = Exporter.load_url url
+  post = Exporter.handle_response response
+  unless post.nil?
+    post.export
+  end
+end
+
+task :crawl do
   url = ENV["URL"]
   Exporter.get_all_posts url
 end
